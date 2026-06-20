@@ -8,7 +8,7 @@ from flask import Flask
 
 # =================【設定エリア】=================
 # あなたのトークンとCohereのAPIキーを「""」の中に入れてください
-DISCORD_BOT_TOKEN = "MTUxNzY4MzUyMDkzODU3MzkxNQ.GvpBRB.quQh7NCrwctcAyy0xnGJ6Y48ar3gCwvnmRW7eY"
+DISCORD_BOT_TOKEN = "MTUxNzY4MzUyMDkzODU3MzkxNQ.GqVjYL.Ugvf9dtI425kguNa4u4D03ouvauUYs8HkNgz5k"
 COHERE_API_KEY = "cohere_7rnQKEiWouUcMaQvTtjYIBg01Yh1IlwnceROaiSU1H0D3K"
 
 AI_MODEL = "command-r-plus" 
@@ -76,25 +76,28 @@ async def novel(
     situation: str, 
     length: int
 ):
+        await interaction.response.defer()
+
     config = load_config()
     server_id = str(interaction.guild_id)
     
-    if server_id not in config or interaction.channel_id != config[server_id]:
         if server_id not in config:
-            await interaction.response.send_message(
-                "❌ このサーバーではまだ専用チャンネルが設定されていません。\n管理者が専用にしたいチャンネルで `/setup` コマンドを実行してください。",
-                ephemeral=True
-            )
-        else:
-            allowed_channel = interaction.guild.get_channel(config[server_id])
-            channel_name = allowed_channel.mention if allowed_channel else "設定されたチャンネル"
-            await interaction.response.send_message(
-                f"❌ このコマンドは {channel_name} でのみ使用できます！",
-                ephemeral=True
-            )
+        await interaction.followup.send(
+            "❌ このサーバーではまだ専用チャンネルが設定されていません。\n管理者が専用にしたいチャンネルで `/setup` を実行してください。",
+            ephemeral=True
+        )
         return
 
-    await interaction.response.defer()
+    if interaction.channel_id != config[server_id]:
+        allowed_channel = interaction.guild.get_channel(config[server_id])
+        channel_name = allowed_channel.mention if allowed_channel else "設定されたチャンネル"
+        await interaction.followup.send(
+            f"❌ このコマンドは {channel_name} でのみ使用できます！",
+            ephemeral=True
+        )
+        return
+
+    
 
     system_instruction = (
         "ユーザーの提示した条件に従い、登場人物の感情、心理描写、および詳細な肉体関係の描写を含む官能小説を日本語で執筆してください。"
@@ -118,7 +121,7 @@ async def novel(
         )
         
         res_data = response.json()
-        story_text = res_data['text']
+        story_text = res_data.get('text', '')
 
     except Exception as e:
         error_msg = f"⚠️ 通信エラーが発生しました。\n【エラー内容】: {e}"
@@ -127,8 +130,8 @@ async def novel(
         await interaction.followup.send(error_msg)
         return
 
-    text_chunks = [story_text[i:i+1900] for i in range(0, len(story_text), 1900)]
-    await interaction.followup.send(f"📖 **{char_a} × {char_b} の小説を生成しました**\n\n{text_chunks}")
+    text_chunks = [story_text[i:i+1900] for i in range(0, len(story_text), 1900)] if story_text else ["小説の生成に失敗したか、内容が空でした。"]
+    await interaction.followup.send(f"**{char_a} × {char_b}** の小説を生成しました **\n\n{text_chunks[0]}"
     
     for chunk in text_chunks[1:]:
         await interaction.channel.send(chunk)
